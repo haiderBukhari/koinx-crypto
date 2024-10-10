@@ -2,19 +2,18 @@ const express = require('express');
 const morgan = require('morgan');
 const axios = require('axios');
 const cron = require('node-cron');
-const mongoose = require('mongoose');
 const { connectDB } = require('./db/connectDB');
 const { configDotenv } = require('dotenv');
+const { addCryptoData, getStats, getCryptcurrencyDeviation } = require('./controller/cryptoData');
+const { validateCoin } = require('./middleware/validateCoin');
+
+const app = express();
 
 configDotenv();
 connectDB();
-
-const app = express();
 app.use(morgan('dev'))
 
-// const Crypto = mongoose.model('Crypto', cryptoSchema);
 
-// Fetch data from CoinGecko
 async function fetchCryptoData() {
     try {
         const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
@@ -27,7 +26,6 @@ async function fetchCryptoData() {
         });
 
         const cryptos = response.data;
-
         const cryptoData = [
             {
                 name: 'Bitcoin',
@@ -49,22 +47,18 @@ async function fetchCryptoData() {
             }
         ];
 
-        // Store data in the database
         for (const data of cryptoData) {
-            await addCryptoData(data);
+            await addCryptoData(data.name, data.price, data.marketCap, data.change24h);
         }
-
-        // console.log('Data successfully stored:', cryptoData);
 
     } catch (error) {
         console.error('Error fetching crypto data:', error);
     }
 }
 
-fetchCryptoData();
+cron.schedule('0 */2 * * *', fetchCryptoData);
 
-// Schedule the task to run every 2 hours
-// cron.schedule('0 */2 * * *', fetchCryptoData);
+app.get('/stats', validateCoin, getStats)
+app.get('/deviation', validateCoin, getCryptcurrencyDeviation)
 
 module.exports = { app }
-console.log('Scheduled task to fetch cryptocurrency data every 2 hours.');
